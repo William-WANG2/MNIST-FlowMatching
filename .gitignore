@@ -7,5 +7,4 @@ build/
 dist/
 artifacts/
 runs/
-data/
-
+/data/
