@@ -341,3 +341,4 @@ Sampling writes:
 - `conditioning=none` removes class conditioning from the backbone and sampling path.
 - The simulator choice affects sampling only; training still learns the vector field defined by the flow-matching objective.
 # MNIST-FlowMatching
+# MNIST-FlowMatching
