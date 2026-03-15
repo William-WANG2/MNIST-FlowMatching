@@ -1,0 +1,6 @@
+name: ode
+num_steps: 100
+t_start: 0.0
+t_end: 0.999
+diffusion_scale: 0.0
+

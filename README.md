@@ -340,5 +340,3 @@ Sampling writes:
 - `conditioning=cfg` uses 11 label slots with the last slot reserved for the unconditional/null label.
 - `conditioning=none` removes class conditioning from the backbone and sampling path.
 - The simulator choice affects sampling only; training still learns the vector field defined by the flow-matching objective.
-# MNIST-FlowMatching
-# MNIST-FlowMatching

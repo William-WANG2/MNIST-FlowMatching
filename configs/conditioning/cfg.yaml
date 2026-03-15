@@ -1,0 +1,6 @@
+name: cfg
+enabled: true
+training_dropout: 0.35
+guidance_scale: 3.0
+num_model_labels: 11
+null_label: 10

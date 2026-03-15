@@ -1,0 +1,6 @@
+checkpoint_path: null
+output_dir: artifacts/samples
+samples_per_class: 8
+guidance_scales: [1.0, 3.0, 5.0]
+use_tqdm: true
+

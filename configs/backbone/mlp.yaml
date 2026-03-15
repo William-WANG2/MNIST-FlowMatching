@@ -1,0 +1,5 @@
+name: mlp
+hidden_dims: [1024, 1024, 1024]
+time_embed_dim: 64
+class_embed_dim: 64
+

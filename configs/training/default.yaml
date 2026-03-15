@@ -1,0 +1,17 @@
+seed: 7
+device: auto
+batch_size: 256
+num_steps: 20000
+lr: 4.0e-4
+weight_decay: 1.0e-4
+warmup_steps: 500
+log_every: 50
+checkpoint_every: 5000
+# Save a comparison image (target vs noisy input vs prediction) every N steps.
+image_log_every: 500
+# Refresh the train loss plot every N steps.
+loss_curve_every: 100
+# Number of training samples to include in each comparison image.
+compare_batch_size: 32
+output_root: runs
+run_name: null

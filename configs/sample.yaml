@@ -1,0 +1,17 @@
+defaults:
+  - data: mnist
+  - path: gaussian
+  - backbone: dit
+  - conditioning: cfg
+  - simulator: ode
+  - sampling: default
+  - _self_
+
+experiment:
+  name: mnist_sampling
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+
