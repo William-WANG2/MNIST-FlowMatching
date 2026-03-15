@@ -56,11 +56,15 @@ class FlowSampler:
         if self.simulator_name == "ode":
             solver = EulerSolver(drift)
         elif self.simulator_name == "sde":
-            score = ScoreFromVectorField(model=model, probability_path=self.probability_path)
+            score = ScoreFromVectorField(
+                vector_field_model=drift,
+                probability_path=self.probability_path,
+            )
             solver = EulerMaruyamaSolver(
                 VectorFieldSDE(
                     drift_model=drift,
                     score_model=score,
+                    probability_path=self.probability_path,
                     diffusion_scale=self.diffusion_scale,
                 )
             )
