@@ -14,7 +14,7 @@ The repo supports:
 This project trains a vector field model on MNIST using a Gaussian probability path. The same learned model can then be sampled with either:
 
 - an ODE solver for deterministic generation
-- an SDE solver for stochastic generation
+- an SDE solver for stochastic generation, where the score model is derived from the vector field model via the Gaussian SDE Extension Trick. 
 
 When `conditioning=cfg`, the model uses classifier-free guidance with 11 label slots:
 
