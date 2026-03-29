@@ -1,5 +1,7 @@
 # MNIST Flow Matching
 
+This is the course project for COMP5421 Computer Vision. The repo can also serve as Pedagogical material for anyone who wishes to learn the theory and implemention of flow matching and diffusion model.
+
 Config-driven MNIST training and sampling for flow matching with interchangeable backbones, conditioning modes, and simulators.
 
 The repo supports:
