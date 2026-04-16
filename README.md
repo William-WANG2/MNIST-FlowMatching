@@ -9,6 +9,8 @@ The repo supports:
 - backbones: `mlp`, `cnn`, `dit`
 - conditioning modes: `none`, `cfg`
 - simulators: `ode`, `sde`
+- tasks: `flow_matching`, `vae`
+- representations: `pixel`, `latent_vae`
 - dataset: MNIST only
 
 ## What This Repo Does
@@ -16,7 +18,7 @@ The repo supports:
 This project trains a vector field model on MNIST using a Gaussian probability path. The same learned model can then be sampled with either:
 
 - an ODE solver for deterministic generation
-- an SDE solver for stochastic generation, where the score model is derived from the vector field model via the Gaussian SDE Extension Trick. 
+- an SDE solver for stochastic generation, where the score model is derived from the vector field model via the Gaussian SDE Extension Trick.
 
 When `conditioning=cfg`, the model uses classifier-free guidance with 11 label slots:
 
@@ -24,6 +26,11 @@ When `conditioning=cfg`, the model uses classifier-free guidance with 11 label s
 - `10`: the unconditional/null label
 
 When `conditioning=none`, the model uses time conditioning only and ignores class labels.
+
+The repo also includes a VAE model path that shares the same Hydra-driven training entrypoint. After a VAE is trained, the same flow/diffusion pipeline can be run either:
+
+- directly in pixel space with `representation=pixel`
+- in VAE latent space with `representation=latent_vae`, where images are encoded before training and sampled latents are decoded back to image space
 
 ## Repository Layout
 
@@ -33,9 +40,12 @@ configs/
   conditioning/{none,cfg}.yaml
   data/mnist.yaml
   path/gaussian.yaml
+  representation/{pixel,latent_vae}.yaml
   simulator/{ode,sde}.yaml
+  task/{flow_matching,vae}.yaml
   training/default.yaml
   sampling/default.yaml
+  vae/default.yaml
   train.yaml
   sample.yaml
 scripts/
@@ -54,6 +64,15 @@ src/
   run_sample.py
   visualization.py
 ```
+
+VAE-specific code lives in:
+
+- `src/models/vae.py`
+- `src/objectives/vae.py`
+- `src/engine/vae_trainer.py`
+- `src/objectives/latent_flow_matching.py`
+- `src/engine/latent_flow_trainer.py`
+- `src/latent_vae.py`
 
 ## Conda Setup
 
@@ -87,23 +106,26 @@ MNIST is downloaded automatically on first training run into `data/`:
 data/MNIST/
 ```
 
-The training loader resizes images to `32x32`, converts them to tensors, and normalizes them using the values from [configs/data/mnist.yaml](/Users/wangxuezhen/Downloads/MNIST/configs/data/mnist.yaml).
+The training loader resizes images to `32x32`, converts them to tensors, and normalizes them using the values from `configs/data/mnist.yaml`.
 
 ## How Training Is Wired
 
 The training path is:
 
-1. [scripts/train.py](/Users/wangxuezhen/Downloads/MNIST/scripts/train.py) loads the Hydra config.
-2. [src/run_train.py](/Users/wangxuezhen/Downloads/MNIST/src/run_train.py) builds the dataloader, probability path, backbone, and objective.
-3. [src/factories.py](/Users/wangxuezhen/Downloads/MNIST/src/factories.py) selects the concrete components from the chosen config groups.
-4. [src/engine/trainer.py](/Users/wangxuezhen/Downloads/MNIST/src/engine/trainer.py) runs optimization and saves checkpoints.
+1. `scripts/train.py` loads the Hydra config.
+2. `src/run_train.py` builds the dataloader and dispatches on both `cfg.task.name` and `cfg.representation.name`.
+3. `src/factories.py` selects the concrete components from the chosen config groups.
+4. `src/engine/trainer.py` runs optimization and saves checkpoints for pixel-space flow matching.
+5. `src/engine/latent_flow_trainer.py` runs latent-space flow matching when `representation=latent_vae`.
+6. `src/engine/vae_trainer.py` provides VAE-specific reconstruction logging when `task=vae`.
 
 The sampling path is:
 
-1. [scripts/sample.py](/Users/wangxuezhen/Downloads/MNIST/scripts/sample.py) loads the Hydra config and a checkpoint.
-2. [src/run_sample.py](/Users/wangxuezhen/Downloads/MNIST/src/run_sample.py) rebuilds the same backbone and path.
-3. [src/simulation/sampler.py](/Users/wangxuezhen/Downloads/MNIST/src/simulation/sampler.py) starts from Gaussian noise and integrates with the selected simulator.
-4. [src/visualization.py](/Users/wangxuezhen/Downloads/MNIST/src/visualization.py) saves the output grid.
+1. `scripts/sample.py` loads the Hydra config and a checkpoint.
+2. `src/run_sample.py` rebuilds the same backbone and probability path in either pixel or latent space.
+3. `src/simulation/sampler.py` starts from Gaussian noise and integrates with the selected ODE or SDE simulator.
+4. `src/latent_vae.py` decodes sampled latents back to image space when `representation=latent_vae`.
+5. `src/visualization.py` saves the output grid.
 
 ## Training
 
@@ -113,11 +135,13 @@ Run the default experiment:
 python scripts/train.py
 ```
 
-The default is defined in [configs/train.yaml](/Users/wangxuezhen/Downloads/MNIST/configs/train.yaml):
+The default is defined in `configs/train.yaml`:
 
 - backbone: `dit`
 - conditioning: `cfg`
 - simulator: `ode`
+- task: `flow_matching`
+- representation: `pixel`
 - batch size: `256`
 - steps: `20000`
 
@@ -165,6 +189,60 @@ DiT + CFG + SDE:
 python scripts/train.py backbone=dit conditioning=cfg simulator=sde training.run_name=dit_cfg_sde
 ```
 
+### VAE Training
+
+Train the VAE through the same entrypoint by switching the task:
+
+```bash
+python scripts/train.py task=vae training.run_name=vae
+```
+
+Example with common VAE overrides:
+
+```bash
+python scripts/train.py \
+  task=vae \
+  training.run_name=vae_beta10 \
+  vae.hidden_channels='[16,32,64,128]' \
+  vae.beta=10.0 \
+  training.num_steps=5000 \
+  training.batch_size=64 \
+  training.lr=1e-3
+```
+
+This path uses:
+
+- `src/models/vae.py` for the model definition
+- `src/objectives/vae.py` for the objective wrapper
+- `src/engine/vae_trainer.py` for optimization, checkpointing, and reconstruction visualizations
+
+### Latent Flow/Diffusion Training With a VAE
+
+After the VAE is trained, switch the representation from pixel space to latent space:
+
+```bash
+python scripts/train.py \
+  task=flow_matching \
+  representation=latent_vae \
+  representation.vae_checkpoint_path=runs/vae/checkpoints/step_005000_model.pt \
+  representation.latent_shape='[128,4,4]' \
+  backbone=dit \
+  backbone.patch_size=1 \
+  conditioning=cfg \
+  simulator=ode \
+  training.run_name=dit_cfg_ode_latent
+```
+
+The latent training workflow is:
+
+1. load the frozen VAE checkpoint
+2. encode each MNIST image into a latent tensor
+3. train the vector field model on the latent tensor instead of the pixel tensor
+4. keep ODE/SDE simulation and CFG logic unchanged at the latent level
+5. decode latent-space visualizations back to image space for logging
+
+`representation=pixel` preserves the original behavior and does not involve the VAE at all.
+
 ### Useful Training Overrides
 
 Change the number of steps:
@@ -209,11 +287,18 @@ Training logs are file-based and include only training signals (no validation lo
 - `training.loss_curve_every`: refresh `loss_curve.png`
 - `training.compare_batch_size`: number of images used in each comparison grid
 
-Each comparison image contains three rows:
+For flow matching, each comparison image contains three rows:
 
 - `target`: original training images
 - `input (x_t)`: noisy path input at sampled time `t`
 - `predicted target`: model-based reconstruction from the vector field prediction
+
+For VAE training, each comparison image contains two rows:
+
+- `target`: original training images
+- `reconstruction`: the decoder output from the sampled latent
+
+For latent-space flow matching, the logged comparison image still contains three rows, but the noisy input and prediction are first decoded from latent space back into image space.
 
 Note: `training.wandb.*` keys are not part of this config yet. Use the local file logs above.
 
@@ -242,7 +327,7 @@ python scripts/sample.py \
   sampling.output_dir=artifacts/dit_cfg_ode
 ```
 
-This writes one image grid per guidance scale from [configs/sampling/default.yaml](/Users/wangxuezhen/Downloads/MNIST/configs/sampling/default.yaml).
+This writes one image grid per guidance scale from `configs/sampling/default.yaml`.
 
 Override the guidance scales:
 
@@ -277,27 +362,88 @@ python scripts/sample.py \
   sampling.output_dir=artifacts/mlp_cfg_sde
 ```
 
+### Using a Trained VAE With ODE and SDE Pipelines
+
+A trained VAE checkpoint can now be used directly with the repo sampling pipeline:
+
+```bash
+python scripts/sample.py \
+  representation=latent_vae \
+  representation.vae_checkpoint_path=runs/vae/checkpoints/step_005000_model.pt \
+  representation.latent_shape='[128,4,4]' \
+  backbone=dit \
+  backbone.patch_size=1 \
+  conditioning=cfg \
+  simulator=ode \
+  sampling.checkpoint_path=runs/dit_cfg_ode_latent/checkpoints/step_010000_model.pt \
+  sampling.output_dir=artifacts/dit_cfg_ode_latent
+```
+
+The same latent model can also be sampled with the SDE simulator:
+
+```bash
+python scripts/sample.py \
+  representation=latent_vae \
+  representation.vae_checkpoint_path=runs/vae/checkpoints/step_005000_model.pt \
+  representation.latent_shape='[128,4,4]' \
+  backbone=dit \
+  backbone.patch_size=1 \
+  conditioning=cfg \
+  simulator=sde \
+  sampling.checkpoint_path=runs/dit_cfg_sde_latent/checkpoints/step_010000_model.pt \
+  sampling.output_dir=artifacts/dit_cfg_sde_latent
+```
+
+In latent sampling mode, `scripts/sample.py`:
+
+1. samples Gaussian noise in the latent shape
+2. simulates the latent trajectory with ODE or SDE dynamics
+3. decodes the final latents with the trained VAE
+4. writes image grids to the sampling output directory
+
+## Full Workflow
+
+If you want to use the VAE together with a diffusion or flow model, the intended workflow is:
+
+1. Train the VAE with `task=vae`.
+2. Save the VAE checkpoint from `runs/<vae_run_name>/checkpoints/`.
+3. Train the flow/diffusion model with `task=flow_matching representation=latent_vae`.
+4. Sample the latent model with `scripts/sample.py representation=latent_vae` and either `simulator=ode` or `simulator=sde`.
+5. Decode the sampled latents automatically back to image space through the same VAE checkpoint.
+
+There is still no single command that jointly trains the VAE and the latent flow model in one launch. The intended workflow is two-stage: VAE first, latent generative model second.
+
 ## Config Groups
 
 The active experiment is composed from Hydra config groups.
 
-Backbone configs in [configs/backbone](/Users/wangxuezhen/Downloads/MNIST/configs/backbone):
+Backbone configs in `configs/backbone`:
 
 - `mlp.yaml`: hidden layer sizes and embedding sizes
 - `cnn.yaml`: U-Net channel widths, residual depth, and embedding sizes
 - `dit.yaml`: patch size, transformer depth, width, heads, and embedding sizes
 
-Conditioning configs in [configs/conditioning](/Users/wangxuezhen/Downloads/MNIST/configs/conditioning):
+Conditioning configs in `configs/conditioning`:
 
 - `none.yaml`: unconditional generation
 - `cfg.yaml`: classifier-free guidance with null label `10`
 
-Simulator configs in [configs/simulator](/Users/wangxuezhen/Downloads/MNIST/configs/simulator):
+Simulator configs in `configs/simulator`:
 
 - `ode.yaml`: Euler solver with deterministic trajectories
 - `sde.yaml`: Euler-Maruyama solver with diffusion scale
 
-Training config in [configs/training/default.yaml](/Users/wangxuezhen/Downloads/MNIST/configs/training/default.yaml):
+Task configs in `configs/task`:
+
+- `flow_matching.yaml`: image-space flow-matching training
+- `vae.yaml`: VAE training
+
+Representation configs in `configs/representation`:
+
+- `pixel.yaml`: original image-space behavior
+- `latent_vae.yaml`: latent-space flow/diffusion behavior backed by a trained VAE
+
+Training config in `configs/training/default.yaml`:
 
 - seed
 - device
@@ -312,13 +458,18 @@ Training config in [configs/training/default.yaml](/Users/wangxuezhen/Downloads/
 - loss curve frequency
 - comparison batch size
 
-Sampling config in [configs/sampling/default.yaml](/Users/wangxuezhen/Downloads/MNIST/configs/sampling/default.yaml):
+Sampling config in `configs/sampling/default.yaml`:
 
 - checkpoint path
 - output directory
 - samples per class
 - guidance scales
 - progress bar toggle
+
+VAE config in `configs/vae/default.yaml`:
+
+- hidden channel widths
+- beta coefficient
 
 ## Outputs
 
@@ -335,6 +486,8 @@ Sampling writes:
 - `artifacts/<experiment_name>/sample_config.yaml`
 - `artifacts/<experiment_name>/*.png`
 
+For VAE runs, the comparison images in `runs/<run_name>/train_logs/comparisons/` are reconstruction grids.
+
 ## Notes
 
 - The repo targets MNIST only.
@@ -342,3 +495,5 @@ Sampling writes:
 - `conditioning=cfg` uses 11 label slots with the last slot reserved for the unconditional/null label.
 - `conditioning=none` removes class conditioning from the backbone and sampling path.
 - The simulator choice affects sampling only; training still learns the vector field defined by the flow-matching objective.
+- `task=vae` reuses the same data loader and training configuration surface, but swaps in the VAE model, objective, and reconstruction logger.
+- `representation=latent_vae` keeps the original flow/diffusion training logic but moves the model state space from pixels to VAE latents.

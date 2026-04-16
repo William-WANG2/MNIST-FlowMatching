@@ -1,9 +1,12 @@
 defaults:
   - data: mnist
+  - task: flow_matching
+  - representation: pixel
   - path: gaussian
   - backbone: dit
   - conditioning: cfg
   - simulator: ode
+  - vae: default
   - training: default
   - _self_
 
@@ -14,4 +17,3 @@ hydra:
   run:
     dir: .
   output_subdir: null
-

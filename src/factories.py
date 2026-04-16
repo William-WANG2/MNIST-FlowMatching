@@ -1,10 +1,13 @@
+from latent_vae import expected_latent_shape
 from models.cnn import CNNVectorField
 from models.dit import DiTVectorField
 from models.mlp import MLPVectorField
+from models.vae import VAE
 from objectives.flow_matching import (
     CFGFlowMatchingObjective,
     UnconditionalFlowMatchingObjective,
 )
+from objectives.latent_flow_matching import LatentFlowMatchingObjective
 from probability_paths.gaussian import (
     GaussianProbabilityPath,
     LinearAlpha,
@@ -24,6 +27,19 @@ def build_probability_path(cfg, image_shape):
         alpha=LinearAlpha(),
         beta=LinearBeta(),
     )
+
+
+def build_representation_shape(cfg):
+    representation_name = getattr(cfg.representation, "name", "pixel")
+    if representation_name == "pixel":
+        return (
+            int(cfg.data.channels),
+            int(cfg.data.image_size),
+            int(cfg.data.image_size),
+        )
+    if representation_name == "latent_vae":
+        return expected_latent_shape(cfg)
+    raise ValueError(f"Unsupported representation: {representation_name}")
 
 
 def build_backbone(cfg, image_shape):
@@ -70,7 +86,18 @@ def build_backbone(cfg, image_shape):
     raise ValueError(f"Unsupported backbone: {cfg.backbone.name}")
 
 
+def build_vae_model(cfg):
+    return VAE(
+        data_channels=int(cfg.data.channels),
+        hidden_channels=list(cfg.vae.hidden_channels),
+        beta=float(cfg.vae.beta),
+    )
+
+
 def build_objective(cfg, probability_path):
+    representation_name = getattr(cfg.representation, "name", "pixel")
+    if representation_name == "latent_vae":
+        raise ValueError("Use build_objective(cfg, probability_path, vae=...) for latent VAE runs.")
     if cfg.conditioning.name == "cfg":
         return CFGFlowMatchingObjective(
             probability_path=probability_path,
@@ -84,6 +111,27 @@ def build_objective(cfg, probability_path):
             eps=float(cfg.path.eps),
         )
     raise ValueError(f"Unsupported conditioning mode: {cfg.conditioning.name}")
+
+
+def build_latent_objective(cfg, probability_path, vae):
+    if cfg.conditioning.name == "cfg":
+        null_label = int(cfg.conditioning.null_label)
+        label_dropout = float(cfg.conditioning.training_dropout)
+    elif cfg.conditioning.name == "none":
+        null_label = None
+        label_dropout = 0.0
+    else:
+        raise ValueError(f"Unsupported conditioning mode: {cfg.conditioning.name}")
+
+    return LatentFlowMatchingObjective(
+        probability_path=probability_path,
+        vae=vae,
+        sample_posterior=bool(cfg.representation.sample_posterior),
+        latent_shape=expected_latent_shape(cfg),
+        null_label=null_label,
+        label_dropout=label_dropout,
+        eps=float(cfg.path.eps),
+    )
 
 
 def build_sampler(cfg, probability_path):

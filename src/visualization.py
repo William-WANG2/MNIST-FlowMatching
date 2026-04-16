@@ -50,6 +50,35 @@ def save_training_comparison(
     plt.close(figure)
 
 
+@torch.no_grad()
+def save_vae_reconstruction_comparison(
+    targets: torch.Tensor,
+    reconstructions: torch.Tensor,
+    output_path: Path,
+    nrow: int,
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    targets = targets.detach().cpu()
+    reconstructions = reconstructions.detach().cpu()
+
+    rows = [
+        ("target", targets),
+        ("reconstruction", reconstructions),
+    ]
+
+    figure, axes = plt.subplots(nrows=2, ncols=1, figsize=(10, 8))
+    for axis, (title, images) in zip(axes, rows):
+        grid = make_grid(images, nrow=nrow, normalize=True, value_range=(-1, 1))
+        axis.imshow(grid.permute(1, 2, 0), cmap="gray")
+        axis.set_title(title)
+        axis.axis("off")
+
+    figure.tight_layout()
+    figure.savefig(output_path)
+    plt.close(figure)
+
+
 def save_loss_curve(
     steps: list[int],
     losses: list[float],
@@ -68,4 +97,3 @@ def save_loss_curve(
     figure.tight_layout()
     figure.savefig(output_path)
     plt.close(figure)
-

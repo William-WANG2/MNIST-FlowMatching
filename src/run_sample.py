@@ -3,7 +3,8 @@ from pathlib import Path
 import torch
 from omegaconf import OmegaConf
 
-from factories import build_backbone, build_probability_path, build_sampler
+from factories import build_backbone, build_probability_path, build_representation_shape, build_sampler
+from latent_vae import decode_with_vae, load_frozen_vae
 from utils.runtime import ensure_dir, resolve_device, seed_everything
 from visualization import save_image_grid
 
@@ -15,15 +16,17 @@ def run_sampling(cfg, project_root: Path) -> None:
     seed_everything(0)
     device = resolve_device("auto")
     output_dir = ensure_dir(project_root / cfg.sampling.output_dir)
+    representation_name = getattr(cfg.representation, "name", "pixel")
+    sample_shape = build_representation_shape(cfg)
+    vae = None
+    if representation_name == "latent_vae":
+        vae = load_frozen_vae(cfg, project_root=project_root, device=device)
 
     probability_path = build_probability_path(
         cfg,
-        image_shape=(cfg.data.channels, cfg.data.image_size, cfg.data.image_size),
+        image_shape=sample_shape,
     )
-    model = build_backbone(
-        cfg,
-        image_shape=(cfg.data.channels, cfg.data.image_size, cfg.data.image_size),
-    ).to(device)
+    model = build_backbone(cfg, image_shape=sample_shape).to(device)
     state_dict = torch.load(cfg.sampling.checkpoint_path, map_location=device)
     model.load_state_dict(state_dict)
     model.eval()
@@ -44,6 +47,8 @@ def run_sampling(cfg, project_root: Path) -> None:
                 guidance_scale=float(guidance_scale),
                 use_tqdm=bool(cfg.sampling.use_tqdm),
             )
+            if vae is not None:
+                samples = decode_with_vae(vae, samples)
             save_image_grid(
                 samples=samples,
                 output_path=output_dir / f"samples_guidance_{guidance_scale:.1f}.png",
@@ -59,6 +64,8 @@ def run_sampling(cfg, project_root: Path) -> None:
             guidance_scale=1.0,
             use_tqdm=bool(cfg.sampling.use_tqdm),
         )
+        if vae is not None:
+            samples = decode_with_vae(vae, samples)
         save_image_grid(
             samples=samples,
             output_path=output_dir / "samples_unconditional.png",

@@ -1,9 +1,11 @@
 defaults:
   - data: mnist
+  - representation: pixel
   - path: gaussian
   - backbone: dit
   - conditioning: cfg
   - simulator: ode
+  - vae: default
   - sampling: default
   - _self_
 
@@ -14,4 +16,3 @@ hydra:
   run:
     dir: .
   output_subdir: null
-

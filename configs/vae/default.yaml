@@ -1,0 +1,2 @@
+hidden_channels: [16, 32, 64, 128]
+beta: 10.0
