@@ -2,7 +2,7 @@ import torch
 
 from engine.trainer import Trainer
 from latent_vae import decode_with_vae
-from visualization import save_training_comparison
+from visualization import save_latent_training_comparison
 
 
 class LatentFlowTrainer(Trainer):
@@ -30,12 +30,14 @@ class LatentFlowTrainer(Trainer):
         t_view = t.view(-1, *([1] * (x_t.ndim - 1)))
         predicted_latents = x_t + (1.0 - t_view) * velocity
 
+        decoded_targets = decode_with_vae(self.vae, target_latents)
         decoded_noisy = decode_with_vae(self.vae, x_t)
         decoded_predicted = decode_with_vae(self.vae, predicted_latents)
 
         log_path = self.run_dir / "train_logs" / "comparisons" / f"step_{step:06d}.png"
-        save_training_comparison(
+        save_latent_training_comparison(
             targets=target_images,
+            decoded_targets=decoded_targets,
             noisy_inputs=decoded_noisy,
             predictions=decoded_predicted,
             output_path=log_path,

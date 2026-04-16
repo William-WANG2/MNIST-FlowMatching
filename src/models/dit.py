@@ -133,17 +133,23 @@ class Depatchifier(nn.Module):
         self.patch_size = patch_size
         self.dim = dim
         self.channels = channels
-        final_dim = 10
+        conv_hidden_channels = max(channels, min(dim, 64))
         self.net = nn.Sequential(
             nn.RMSNorm(dim, elementwise_affine=False),
             nn.Linear(dim, 4 * dim),
             nn.SiLU(),
-            nn.Linear(4 * dim, patch_size * patch_size * final_dim),
-
-            # Rearrange for convolution
-            Rearrange("b (h w) (p1 p2 c) -> b c (h p1) (w p2)", h=height // patch_size, w=width // patch_size, p1=patch_size, p2=patch_size, c=final_dim),
-
-            nn.Conv2d(final_dim, 1, kernel_size=3, padding=1)
+            nn.Linear(4 * dim, patch_size * patch_size * conv_hidden_channels),
+            Rearrange(
+                "b (h w) (p1 p2 c) -> b c (h p1) (w p2)",
+                h=height // patch_size,
+                w=width // patch_size,
+                p1=patch_size,
+                p2=patch_size,
+                c=conv_hidden_channels,
+            ),
+            nn.Conv2d(conv_hidden_channels, conv_hidden_channels, kernel_size=3, padding=1),
+            nn.SiLU(),
+            nn.Conv2d(conv_hidden_channels, channels, kernel_size=3, padding=1),
         )
 
 

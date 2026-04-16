@@ -51,6 +51,36 @@ def save_training_comparison(
 
 
 @torch.no_grad()
+def save_latent_training_comparison(
+    targets: torch.Tensor,
+    decoded_targets: torch.Tensor,
+    noisy_inputs: torch.Tensor,
+    predictions: torch.Tensor,
+    output_path: Path,
+    nrow: int,
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    rows = [
+        ("target", targets.detach().cpu()),
+        ("decoded clean latent", decoded_targets.detach().cpu()),
+        ("decoded noisy latent", noisy_inputs.detach().cpu()),
+        ("decoded predicted latent", predictions.detach().cpu()),
+    ]
+
+    figure, axes = plt.subplots(nrows=len(rows), ncols=1, figsize=(10, 16))
+    for axis, (title, images) in zip(axes, rows):
+        grid = make_grid(images, nrow=nrow, normalize=True, value_range=(-1, 1))
+        axis.imshow(grid.permute(1, 2, 0), cmap="gray")
+        axis.set_title(title)
+        axis.axis("off")
+
+    figure.tight_layout()
+    figure.savefig(output_path)
+    plt.close(figure)
+
+
+@torch.no_grad()
 def save_vae_reconstruction_comparison(
     targets: torch.Tensor,
     reconstructions: torch.Tensor,

@@ -1,7 +1,7 @@
 import torch
 
 from latent_vae import encode_with_vae
-from objectives.flow_matching import FlowMatchingObjective
+from objectives.flow_matching import FlowMatchingObjective, _validate_model_output_shape
 
 
 class LatentFlowMatchingObjective(FlowMatchingObjective):
@@ -49,4 +49,5 @@ class LatentFlowMatchingObjective(FlowMatchingObjective):
             effective_labels = torch.where(dropout_mask, self.null_label, labels)
 
         output = model(x_t, t, effective_labels)
+        _validate_model_output_shape(output, target)
         return torch.mean((output - target) ** 2)

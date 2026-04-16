@@ -3,6 +3,14 @@ from abc import ABC, abstractmethod
 import torch
 
 
+def _validate_model_output_shape(output: torch.Tensor, target: torch.Tensor) -> None:
+    if output.shape != target.shape:
+        raise ValueError(
+            f"Model output shape {tuple(output.shape)} does not match target shape "
+            f"{tuple(target.shape)}."
+        )
+
+
 class FlowMatchingObjective(ABC):
     def __init__(self, probability_path, eps: float):
         self.probability_path = probability_path
@@ -33,6 +41,7 @@ class UnconditionalFlowMatchingObjective(FlowMatchingObjective):
         x_t = self.probability_path.sample_path(images, t)
         target = self.probability_path.vector_field(x_t, images, t)
         output = model(x_t, t, None)
+        _validate_model_output_shape(output, target)
         return torch.mean((output - target) ** 2)
 
 class CFGFlowMatchingObjective(FlowMatchingObjective):
@@ -61,4 +70,5 @@ class CFGFlowMatchingObjective(FlowMatchingObjective):
         dropout_mask = torch.rand(batch_size, device=images.device) < self.label_dropout
         labels = torch.where(dropout_mask, self.null_label, labels)
         output = model(x_t, t, labels)
+        _validate_model_output_shape(output, target)
         return torch.mean((output - target) ** 2)
