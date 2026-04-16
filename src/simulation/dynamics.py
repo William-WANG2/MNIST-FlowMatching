@@ -58,7 +58,9 @@ class ScoreFromVectorField(nn.Module):
         dt_beta_t = _broadcast_time_like(self.probability_path.beta.dt(t), x)
         vector_field = self.vector_field_model.drift_coefficient(x, t, y=y)
         return (alpha_t * vector_field - dt_alpha_t * x) / (
-            beta_t * (beta_t * dt_alpha_t - alpha_t * dt_beta_t)
+            (self.probability_path.source_std**2)
+            * beta_t
+            * (beta_t * dt_alpha_t - alpha_t * dt_beta_t)
         )
 
 

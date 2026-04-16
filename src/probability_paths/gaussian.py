@@ -62,10 +62,13 @@ class GaussianProbabilityPath(nn.Module):
         sample_device = device or self.device
         return self.source_std * torch.randn(batch_size, *self.sample_shape, device=sample_device)
 
+    def sample_source_like(self, reference: torch.Tensor) -> torch.Tensor:
+        return self.source_std * torch.randn_like(reference)
+
     def sample_path(self, target: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         alpha_t = _broadcast_time_like(self.alpha(t), target)
         beta_t = _broadcast_time_like(self.beta(t), target)
-        return alpha_t * target + beta_t * torch.randn_like(target)
+        return alpha_t * target + beta_t * self.sample_source_like(target)
 
     def vector_field(self, x: torch.Tensor, target: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         alpha_t = _broadcast_time_like(self.alpha(t), x)
@@ -80,5 +83,4 @@ class GaussianProbabilityPath(nn.Module):
     def score(self, x: torch.Tensor, target: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         alpha_t = _broadcast_time_like(self.alpha(t), x)
         beta_t = _broadcast_time_like(self.beta(t), x)
-        return (alpha_t * target - x) / (beta_t**2)
-
+        return (alpha_t * target - x) / ((self.source_std**2) * beta_t**2)

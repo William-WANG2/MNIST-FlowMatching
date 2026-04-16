@@ -73,9 +73,17 @@ def build_backbone(cfg, image_shape):
             num_classes=conditioning_classes,
         )
     if cfg.backbone.name == "dit":
+        representation_name = getattr(cfg.representation, "name", "pixel")
+        patch_size = int(cfg.backbone.patch_size)
+        if representation_name == "latent_vae" and patch_size != 1:
+            raise ValueError(
+                "Latent DiT training expects backbone.patch_size=1 for the default 4x4 VAE "
+                f"latents, but got patch_size={patch_size}. Using a larger patch size collapses "
+                "the latent map into too few tokens and commonly stalls training."
+            )
         return DiTVectorField(
             image_shape=image_shape,
-            patch_size=int(cfg.backbone.patch_size),
+            patch_size=patch_size,
             depth=int(cfg.backbone.depth),
             dim=int(cfg.backbone.dim),
             heads=int(cfg.backbone.heads),
