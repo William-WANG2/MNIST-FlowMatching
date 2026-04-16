@@ -202,9 +202,9 @@ Example with common VAE overrides:
 ```bash
 python scripts/train.py \
   task=vae \
-  training.run_name=vae_beta10 \
-  vae.hidden_channels='[16,32,64,128]' \
-  vae.beta=10.0 \
+  training.run_name=vae_beta2 \
+  vae.hidden_channels='[16,32,64]' \
+  vae.beta=2.0 \
   training.num_steps=5000 \
   training.batch_size=64 \
   training.lr=1e-3
@@ -225,7 +225,7 @@ python scripts/train.py \
   task=flow_matching \
   representation=latent_vae \
   representation.vae_checkpoint_path=runs/vae/checkpoints/step_005000_model.pt \
-  representation.latent_shape='[128,4,4]' \
+  representation.latent_shape='[64,8,8]' \
   backbone=dit \
   conditioning=cfg \
   simulator=ode \
