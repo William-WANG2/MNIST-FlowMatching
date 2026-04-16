@@ -43,6 +43,7 @@ def build_representation_shape(cfg):
 
 
 def build_backbone(cfg, image_shape):
+    representation_name = getattr(cfg.representation, "name", "pixel")
     conditioning_classes = None
     if cfg.conditioning.enabled:
         conditioning_classes = int(cfg.conditioning.num_model_labels)
@@ -64,26 +65,39 @@ def build_backbone(cfg, image_shape):
             num_classes=conditioning_classes,
         )
     if cfg.backbone.name == "cnn":
+        channels = getattr(cfg.backbone, "channels", None)
+        if channels is None:
+            channels = (
+                cfg.backbone.latent_channels
+                if representation_name == "latent_vae"
+                else cfg.backbone.pixel_channels
+            )
+        num_residual_layers = getattr(cfg.backbone, "num_residual_layers", None)
+        if num_residual_layers is None:
+            num_residual_layers = (
+                cfg.backbone.latent_num_residual_layers
+                if representation_name == "latent_vae"
+                else cfg.backbone.pixel_num_residual_layers
+            )
         return CNNVectorField(
             image_shape=image_shape,
-            channels=list(cfg.backbone.channels),
-            num_residual_layers=int(cfg.backbone.num_residual_layers),
+            channels=list(channels),
+            num_residual_layers=int(num_residual_layers),
             time_embed_dim=int(cfg.backbone.time_embed_dim),
             class_embed_dim=int(cfg.backbone.class_embed_dim),
             num_classes=conditioning_classes,
         )
     if cfg.backbone.name == "dit":
-        representation_name = getattr(cfg.representation, "name", "pixel")
-        patch_size = int(cfg.backbone.patch_size)
-        if representation_name == "latent_vae" and patch_size != 1:
-            raise ValueError(
-                "Latent DiT training expects backbone.patch_size=1 for the default 4x4 VAE "
-                f"latents, but got patch_size={patch_size}. Using a larger patch size collapses "
-                "the latent map into too few tokens and commonly stalls training."
+        patch_size = getattr(cfg.backbone, "patch_size", None)
+        if patch_size is None:
+            patch_size = (
+                cfg.backbone.latent_patch_size
+                if representation_name == "latent_vae"
+                else cfg.backbone.pixel_patch_size
             )
         return DiTVectorField(
             image_shape=image_shape,
-            patch_size=patch_size,
+            patch_size=int(patch_size),
             depth=int(cfg.backbone.depth),
             dim=int(cfg.backbone.dim),
             heads=int(cfg.backbone.heads),

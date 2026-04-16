@@ -227,11 +227,16 @@ python scripts/train.py \
   representation.vae_checkpoint_path=runs/vae/checkpoints/step_005000_model.pt \
   representation.latent_shape='[128,4,4]' \
   backbone=dit \
-  backbone.patch_size=1 \
   conditioning=cfg \
   simulator=ode \
   training.run_name=dit_cfg_ode_latent
 ```
+
+For representation-aware backbone defaults:
+
+- latent `dit` uses `latent_patch_size=1` by default
+- latent `cnn` uses a no-downsampling stack by default via `latent_channels=[128]`
+- set `backbone.patch_size`, `backbone.channels`, or `backbone.num_residual_layers` explicitly if you want to override those defaults
 
 The latent training workflow is:
 
@@ -372,7 +377,6 @@ python scripts/sample.py \
   representation.vae_checkpoint_path=runs/vae/checkpoints/step_005000_model.pt \
   representation.latent_shape='[128,4,4]' \
   backbone=dit \
-  backbone.patch_size=1 \
   conditioning=cfg \
   simulator=ode \
   sampling.checkpoint_path=runs/dit_cfg_ode_latent/checkpoints/step_010000_model.pt \
@@ -387,7 +391,6 @@ python scripts/sample.py \
   representation.vae_checkpoint_path=runs/vae/checkpoints/step_005000_model.pt \
   representation.latent_shape='[128,4,4]' \
   backbone=dit \
-  backbone.patch_size=1 \
   conditioning=cfg \
   simulator=sde \
   sampling.checkpoint_path=runs/dit_cfg_sde_latent/checkpoints/step_010000_model.pt \

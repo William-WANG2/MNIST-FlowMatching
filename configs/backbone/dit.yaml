@@ -1,8 +1,9 @@
 name: dit
-patch_size: 4
+patch_size: null
+pixel_patch_size: 4
+latent_patch_size: 1
 depth: 8
 dim: 256
 heads: 8
 time_embed_dim: 256
 class_embed_dim: 256
-
