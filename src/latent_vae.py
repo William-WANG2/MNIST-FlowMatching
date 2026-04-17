@@ -22,6 +22,22 @@ def expected_latent_shape(cfg) -> tuple[int, ...]:
     return shape
 
 
+def infer_vae_latent_shape(cfg) -> tuple[int, int, int]:
+    hidden_channels = list(cfg.vae.hidden_channels)
+    if not hidden_channels:
+        raise ValueError("cfg.vae.hidden_channels must contain at least one channel width.")
+
+    image_size = int(cfg.data.image_size)
+    downsample_factor = 2 ** max(0, len(hidden_channels) - 1)
+    if image_size % downsample_factor != 0:
+        raise ValueError(
+            f"Image size {image_size} is incompatible with VAE downsample factor {downsample_factor}."
+        )
+
+    spatial_size = image_size // downsample_factor
+    return int(hidden_channels[-1]), spatial_size, spatial_size
+
+
 def encode_with_vae(
     vae: nn.Module,
     images: torch.Tensor,

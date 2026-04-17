@@ -1,5 +1,6 @@
 defaults:
   - data: mnist
+  - task: flow_matching
   - representation: pixel
   - path: gaussian
   - backbone: dit
