@@ -14,16 +14,15 @@ set -euo pipefail
 GPU="${GPU:-2}"
 DEVICE="${DEVICE:-cuda}"
 PYTHONPATH_VALUE="${PYTHONPATH_VALUE:-src}"
-LR="${LR:-1e-3}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
 VAE_RUN_NAME="${VAE_RUN_NAME:-vae}"
 VAE_NUM_STEPS="${VAE_NUM_STEPS:-10000}"
 VAE_EXTRA_ARGS="${VAE_EXTRA_ARGS:-}"
 SAMPLE_EXTRA_ARGS="${SAMPLE_EXTRA_ARGS:-}"
-BACKBONES=(dit cnn mlp)
-CONDITIONINGS=(cfg none)
-SIMULATORS=(ode sde)
-REPRESENTATIONS=(pixel latent_vae)
+BACKBONES=(cnn dit mlp)
+CONDITIONINGS=(none cfg)
+SIMULATORS=(sde ode)
+REPRESENTATIONS=(latent_vae pixel)
 
 
 latest_model_checkpoint() {
@@ -130,7 +129,6 @@ for representation in "${REPRESENTATIONS[@]}"; do
           conditioning="${conditioning}"
           simulator="${simulator}"
           training.run_name="${run_name}"
-          training.lr="${LR}"
         )
 
         if [[ "${representation}" == "latent_vae" ]]; then
@@ -145,7 +143,7 @@ for representation in "${REPRESENTATIONS[@]}"; do
           done < <(append_override_args "${EXTRA_ARGS}")
         fi
 
-        run_and_log "Training run ${run_name} (GPU=${GPU} DEVICE=${DEVICE} LR=${LR})" "${cmd[@]}"
+        run_and_log "Training run ${run_name} (GPU=${GPU} DEVICE=${DEVICE})" "${cmd[@]}"
 
         checkpoint_path="$(latest_model_checkpoint "${run_name}")"
         sample_cmd=(

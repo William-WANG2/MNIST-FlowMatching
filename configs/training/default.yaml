@@ -1,6 +1,6 @@
 seed: 7
 device: auto
-batch_size: 256
+batch_size: 64
 num_steps: 20000
 lr: 4.0e-4
 weight_decay: 1.0e-4

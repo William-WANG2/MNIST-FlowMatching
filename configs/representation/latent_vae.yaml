@@ -1,4 +1,4 @@
 name: latent_vae
 vae_checkpoint_path: null
-latent_shape: [64, 8, 8]
+latent_shape: [128, 8, 8]
 sample_posterior: false
