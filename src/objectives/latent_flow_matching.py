@@ -40,8 +40,8 @@ class LatentFlowMatchingObjective(FlowMatchingObjective):
         latents = self.encode_batch(images)
         batch_size = latents.shape[0]
         t = self.sample_time(batch_size, latents.device)
-        x_t = self.probability_path.sample_path(latents, t)
-        target = self.probability_path.vector_field(x_t, latents, t)
+        x_t, source = self.probability_path.sample_coupled(latents, t)
+        target = self.probability_path.vector_field_from_source(latents, source, t)
 
         effective_labels = None
         if self.null_label is not None:

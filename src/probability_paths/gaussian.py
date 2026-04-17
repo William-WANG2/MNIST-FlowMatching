@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 import torch
 from torch import nn
@@ -65,10 +66,31 @@ class GaussianProbabilityPath(nn.Module):
     def sample_source_like(self, reference: torch.Tensor) -> torch.Tensor:
         return self.source_std * torch.randn_like(reference)
 
-    def sample_path(self, target: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+    def sample_path(
+        self,
+        target: torch.Tensor,
+        t: torch.Tensor,
+        source: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        if source is None:
+            source = self.sample_source_like(target)
         alpha_t = _broadcast_time_like(self.alpha(t), target)
         beta_t = _broadcast_time_like(self.beta(t), target)
-        return alpha_t * target + beta_t * self.sample_source_like(target)
+        return alpha_t * target + beta_t * source
+
+    def sample_coupled(self, target: torch.Tensor, t: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        source = self.sample_source_like(target)
+        return self.sample_path(target=target, t=t, source=source), source
+
+    def vector_field_from_source(
+        self,
+        target: torch.Tensor,
+        source: torch.Tensor,
+        t: torch.Tensor,
+    ) -> torch.Tensor:
+        dt_alpha_t = _broadcast_time_like(self.alpha.dt(t), target)
+        dt_beta_t = _broadcast_time_like(self.beta.dt(t), target)
+        return dt_alpha_t * target + dt_beta_t * source
 
     def vector_field(self, x: torch.Tensor, target: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         alpha_t = _broadcast_time_like(self.alpha(t), x)

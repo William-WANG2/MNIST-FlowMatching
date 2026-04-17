@@ -15,28 +15,20 @@ class ResidualLayer(nn.Module):
         class_embed_dim: Optional[int],
     ):
         super().__init__()
-        self.block1 = nn.Sequential(
+        norm_groups = _resolve_group_norm_groups(channels)
+        cond_dim = time_embed_dim + (class_embed_dim or 0)
+
+        self.norm1 = nn.GroupNorm(norm_groups, channels)
+        self.norm2 = nn.GroupNorm(norm_groups, channels)
+        self.activation = nn.SiLU()
+        self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, padding=1)
+        self.condition_adapter = nn.Sequential(
             nn.SiLU(),
-            nn.BatchNorm2d(channels),
-            nn.Conv2d(channels, channels, kernel_size=3, padding=1),
+            nn.Linear(cond_dim, channels * 2),
         )
-        self.block2 = nn.Sequential(
-            nn.SiLU(),
-            nn.BatchNorm2d(channels),
-            nn.Conv2d(channels, channels, kernel_size=3, padding=1),
-        )
-        self.time_adapter = nn.Sequential(
-            nn.Linear(time_embed_dim, time_embed_dim),
-            nn.SiLU(),
-            nn.Linear(time_embed_dim, channels),
-        )
-        self.class_adapter = None
-        if class_embed_dim is not None:
-            self.class_adapter = nn.Sequential(
-                nn.Linear(class_embed_dim, class_embed_dim),
-                nn.SiLU(),
-                nn.Linear(class_embed_dim, channels),
-            )
+        nn.init.zeros_(self.conv2.weight)
+        nn.init.zeros_(self.conv2.bias)
 
     def forward(
         self,
@@ -45,12 +37,25 @@ class ResidualLayer(nn.Module):
         y_embed: Optional[torch.Tensor],
     ) -> torch.Tensor:
         residual = x
-        x = self.block1(x)
-        x = x + self.time_adapter(t_embed).unsqueeze(-1).unsqueeze(-1)
-        if self.class_adapter is not None and y_embed is not None:
-            x = x + self.class_adapter(y_embed).unsqueeze(-1).unsqueeze(-1)
-        x = self.block2(x)
-        return x + residual
+        conditioning = t_embed if y_embed is None else torch.cat([t_embed, y_embed], dim=-1)
+        scale, bias = self.condition_adapter(conditioning).chunk(2, dim=-1)
+        scale = scale.unsqueeze(-1).unsqueeze(-1)
+        bias = bias.unsqueeze(-1).unsqueeze(-1)
+
+        x = self.norm1(x)
+        x = x * (1.0 + scale) + bias
+        x = self.activation(x)
+        x = self.conv1(x)
+        x = self.activation(self.norm2(x))
+        x = self.conv2(x)
+        return residual + x
+
+
+def _resolve_group_norm_groups(channels: int) -> int:
+    for groups in (32, 16, 8, 4, 2, 1):
+        if channels % groups == 0:
+            return groups
+    return 1
 
 
 class Encoder(nn.Module):
@@ -82,10 +87,12 @@ class Encoder(nn.Module):
         x: torch.Tensor,
         t_embed: torch.Tensor,
         y_embed: Optional[torch.Tensor],
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         for block in self.res_blocks:
             x = block(x, t_embed, y_embed)
-        return self.downsample(x)
+        skip = x
+        x = self.downsample(x)
+        return x, skip
 
 
 class Midcoder(nn.Module):
@@ -139,10 +146,12 @@ class Decoder(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
+        skip: torch.Tensor,
         t_embed: torch.Tensor,
         y_embed: Optional[torch.Tensor],
     ) -> torch.Tensor:
         x = self.upsample(x)
+        x = x + skip
         for block in self.res_blocks:
             x = block(x, t_embed, y_embed)
         return x
@@ -164,12 +173,26 @@ class CNNVectorField(VectorFieldModel):
 
         self.null_label = num_classes - 1 if num_classes is not None else None
         self.time_embedder = FourierEncoder(time_embed_dim)
+        self.time_projection = nn.Sequential(
+            nn.Linear(time_embed_dim, time_embed_dim),
+            nn.SiLU(),
+            nn.Linear(time_embed_dim, time_embed_dim),
+        )
         self.class_embedding = (
             nn.Embedding(num_classes, class_embed_dim) if num_classes is not None else None
         )
+        self.class_projection = (
+            nn.Sequential(
+                nn.Linear(class_embed_dim, class_embed_dim),
+                nn.SiLU(),
+                nn.Linear(class_embed_dim, class_embed_dim),
+            )
+            if num_classes is not None
+            else None
+        )
         self.init_conv = nn.Sequential(
             nn.Conv2d(image_channels, channels[0], kernel_size=3, padding=1),
-            nn.BatchNorm2d(channels[0]),
+            nn.GroupNorm(_resolve_group_norm_groups(channels[0]), channels[0]),
             nn.SiLU(),
         )
         self.encoders = nn.ModuleList(
@@ -212,6 +235,13 @@ class CNNVectorField(VectorFieldModel):
             kernel_size=3,
             padding=1,
         )
+        self.final_norm = nn.GroupNorm(
+            _resolve_group_norm_groups(channels[0]),
+            channels[0],
+        )
+        self.final_activation = nn.SiLU()
+        nn.init.zeros_(self.final_conv.weight)
+        nn.init.zeros_(self.final_conv.bias)
 
     def forward(
         self,
@@ -219,21 +249,26 @@ class CNNVectorField(VectorFieldModel):
         t: torch.Tensor,
         y: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        t_embed = self.time_embedder(t) # shape (batch_size, time_embed_dim)
-        y_embed = self.class_embedding(y) if self.class_embedding is not None else None # shape (batch_size, class_embed_dim) or None
+        t_embed = self.time_projection(self.time_embedder(t))
+        y_embed = None
+        if self.class_embedding is not None:
+            if y is None:
+                raise ValueError("Conditional CNNVectorField requires labels.")
+            y_embed = self.class_projection(self.class_embedding(y))
 
-        x = self.init_conv(x) # shape (batch_size, channels[0], height, width)
+        x = self.init_conv(x)
+        input_skip = x
 
         skips = []
         for encoder in self.encoders:
-            x = encoder(x, t_embed, y_embed) # shape (batch_size, channels[i], height // 2, width // 2)
-            skips.append(x)
-        
-        x = self.midcoder(x, t_embed, y_embed) # shape (batch_size, channels[-1], height // 2**len(channels), width // 2**len(channels))
+            x, skip = encoder(x, t_embed, y_embed)
+            skips.append(skip)
+
+        x = self.midcoder(x, t_embed, y_embed)
 
         for decoder in self.decoders:
-            skip = skips.pop() # shape (batch_size, channels[i], height // 2**i, width // 2**i)
-            x = x + skip # Add skip connection before decoding. shape (batch_size, channels[i], height // 2**i, width // 2**i)
-            x = decoder(x, t_embed, y_embed) # shape (batch_size, channels[i-1], height // 2**(i-1), width // 2**(i-1))
-        x = self.final_conv(x) # shape (batch_size, image_channels, height, width)
-        return x
+            x = decoder(x, skips.pop(), t_embed, y_embed)
+
+        x = x + input_skip
+        x = self.final_activation(self.final_norm(x))
+        return self.final_conv(x)

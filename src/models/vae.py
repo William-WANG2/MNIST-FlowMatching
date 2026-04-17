@@ -63,17 +63,20 @@ class AttnBlock(nn.Module):
             nn.SiLU(),
             nn.Linear(4 * channels, channels)
         )
+        nn.init.zeros_(self.ff[-1].weight)
+        nn.init.zeros_(self.ff[-1].bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         _, _, h, w = x.shape
         x = self.reshape1(x)
-        x_skip = x
+        attn_skip = x
         x = self.norm1(x)
         x = self.att(x)
-        x = x + x_skip
+        x = x + attn_skip
+        ff_skip = x
         x = self.norm2(x)
         x = self.ff(x)
-        x = x + x_skip
+        x = x + ff_skip
 
         return rearrange(x, "b (h w) c -> b c h w", h=h, w=w)
 

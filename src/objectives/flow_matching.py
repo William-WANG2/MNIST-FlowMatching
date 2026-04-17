@@ -38,8 +38,8 @@ class UnconditionalFlowMatchingObjective(FlowMatchingObjective):
     ) -> torch.Tensor:
         batch_size = images.shape[0]
         t = self.sample_time(batch_size, images.device)
-        x_t = self.probability_path.sample_path(images, t)
-        target = self.probability_path.vector_field(x_t, images, t)
+        x_t, source = self.probability_path.sample_coupled(images, t)
+        target = self.probability_path.vector_field_from_source(images, source, t)
         output = model(x_t, t, None)
         _validate_model_output_shape(output, target)
         return torch.mean((output - target) ** 2)
@@ -64,8 +64,8 @@ class CFGFlowMatchingObjective(FlowMatchingObjective):
     ) -> torch.Tensor:
         batch_size = images.shape[0]
         t = self.sample_time(batch_size, images.device)
-        x_t = self.probability_path.sample_path(images, t)
-        target = self.probability_path.vector_field(x_t, images, t)
+        x_t, source = self.probability_path.sample_coupled(images, t)
+        target = self.probability_path.vector_field_from_source(images, source, t)
         # Apply classifier-free guidance label dropout
         dropout_mask = torch.rand(batch_size, device=images.device) < self.label_dropout
         labels = torch.where(dropout_mask, self.null_label, labels)
