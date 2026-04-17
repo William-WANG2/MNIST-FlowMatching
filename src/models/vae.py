@@ -249,11 +249,13 @@ class VAE(nn.Module):
         # KL loss: -0.5 * sum(1 + log(var) - mean^2 - var)
         # We flatten all dimensions except the batch dimension to sum across the latent map
         kl_div = -0.5 * (1 + z_logvar - z_mean.pow(2) - z_logvar.exp())
-        kl_loss = self.beta * kl_div.view(batch_size, -1).sum(dim=1).mean()
+        # kl_loss = self.beta * kl_div.view(batch_size, -1).sum(dim=1).mean()
+        kl_loss = self.beta * kl_div.mean()
 
         # Reconstruction loss: Gaussian Negative Log-Likelihood
         # 0.5 * sum( (x_true - x_mean)^2 / exp(x_logvar) + x_logvar )
         nll = 0.5 * (torch.exp(-x_logvar) * (x_true - x_mean).pow(2) + x_logvar)
-        recon_loss = nll.view(batch_size, -1).sum(dim=1).mean()
+        # recon_loss = nll.view(batch_size, -1).sum(dim=1).mean()
+        recon_loss = nll.mean()
 
         return kl_loss + recon_loss
