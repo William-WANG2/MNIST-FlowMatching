@@ -1,3 +1,3 @@
-hidden_channels: [32, 64, 128]
+hidden_channels: [16, 32, 64, 128]
 beta: 5.0
-# we can find that when we use beta=1.0, many encoded features are zero, which means the distribution collapses.
+# we can find that when we use beta=5.0, the distribution is more stable and less likely to collapse.
