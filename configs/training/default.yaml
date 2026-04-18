@@ -5,7 +5,7 @@ batch_size: null
 pixel_batch_size: 256
 latent_batch_size: 128
 vae_batch_size: 128
-num_steps: 20000
+num_steps: 40000
 lr: 4.0e-4
 weight_decay: 1.0e-4
 warmup_steps: 500
@@ -19,3 +19,5 @@ loss_curve_every: 100
 compare_batch_size: 32
 output_root: runs
 run_name: null
+# Runtime-populated effective batch size used for this run.
+resolved_batch_size: null

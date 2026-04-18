@@ -5,5 +5,15 @@ latent_channels: [128]
 num_residual_layers: null
 pixel_num_residual_layers: 2
 latent_num_residual_layers: 8
+mid_num_residual_layers: null
+pixel_mid_num_residual_layers: null
+latent_mid_num_residual_layers: null
+# by default, we only downsample the pixel space, and keep the latent space at the same resolution. This is because we want to preserve as much information as possible in the latent space (since spatially it's already compressed and creating a new bottleneck will lead to significant information loss), while still reducing the computational cost in the pixel space.
+downsample: null
+pixel_downsample: true
+latent_downsample: false
+upsample_mode: null
+pixel_upsample_mode: bilinear
+latent_upsample_mode: deconv
 time_embed_dim: 128
 class_embed_dim: 128

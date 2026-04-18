@@ -66,6 +66,7 @@ class Encoder(nn.Module):
         num_residual_layers: int,
         time_embed_dim: int,
         class_embed_dim: Optional[int],
+        downsample: bool,
     ):
         super().__init__()
         self.res_blocks = nn.ModuleList(
@@ -74,11 +75,12 @@ class Encoder(nn.Module):
                 for _ in range(num_residual_layers)
             ]
         )
-        self.downsample = nn.Conv2d(
+        stride = 2 if downsample else 1
+        self.transition = nn.Conv2d(
             channels_in,
             channels_out,
             kernel_size=3,
-            stride=2,
+            stride=stride,
             padding=1,
         )
 
@@ -91,7 +93,7 @@ class Encoder(nn.Module):
         for block in self.res_blocks:
             x = block(x, t_embed, y_embed)
         skip = x
-        x = self.downsample(x)
+        x = self.transition(x)
         return x, skip
 
 
@@ -130,12 +132,32 @@ class Decoder(nn.Module):
         num_residual_layers: int,
         time_embed_dim: int,
         class_embed_dim: Optional[int],
+        upsample: bool,
+        upsample_mode: str,
     ):
         super().__init__()
-        self.upsample = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False),
-            nn.Conv2d(channels_in, channels_out, kernel_size=3, padding=1),
-        )
+        if upsample_mode not in {"bilinear", "deconv"}:
+            raise ValueError(
+                f"Unsupported upsample_mode: {upsample_mode}. "
+                "Expected one of {'bilinear', 'deconv'}."
+            )
+
+        if upsample:
+            if upsample_mode == "deconv":
+                self.upsample = nn.ConvTranspose2d(
+                    channels_in,
+                    channels_out,
+                    kernel_size=4,
+                    stride=2,
+                    padding=1,
+                )
+            else:
+                self.upsample = nn.Sequential(
+                    nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False),
+                    nn.Conv2d(channels_in, channels_out, kernel_size=3, padding=1),
+                )
+        else:
+            self.upsample = nn.Conv2d(channels_in, channels_out, kernel_size=3, padding=1)
         self.res_blocks = nn.ModuleList(
             [
                 ResidualLayer(channels_out, time_embed_dim, class_embed_dim)
@@ -163,6 +185,9 @@ class CNNVectorField(VectorFieldModel):
         image_shape,
         channels,
         num_residual_layers: int,
+        mid_num_residual_layers: Optional[int],
+        downsample: bool,
+        upsample_mode: str,
         time_embed_dim: int,
         class_embed_dim: int,
         num_classes: Optional[int],
@@ -190,6 +215,14 @@ class CNNVectorField(VectorFieldModel):
             if num_classes is not None
             else None
         )
+        if upsample_mode not in {"bilinear", "deconv"}:
+            raise ValueError(
+                f"Unsupported upsample_mode: {upsample_mode}. "
+                "Expected one of {'bilinear', 'deconv'}."
+            )
+        if mid_num_residual_layers is None:
+            mid_num_residual_layers = num_residual_layers
+
         self.init_conv = nn.Sequential(
             nn.Conv2d(image_channels, channels[0], kernel_size=3, padding=1),
             nn.GroupNorm(_resolve_group_norm_groups(channels[0]), channels[0]),
@@ -203,13 +236,14 @@ class CNNVectorField(VectorFieldModel):
                     num_residual_layers=num_residual_layers,
                     time_embed_dim=time_embed_dim,
                     class_embed_dim=effective_class_embed_dim,
+                    downsample=downsample,
                 )
                 for current_channels, next_channels in zip(channels[:-1], channels[1:])
             ]
         )
         self.midcoder = Midcoder(
             channels=channels[-1],
-            num_residual_layers=num_residual_layers,
+            num_residual_layers=mid_num_residual_layers,
             time_embed_dim=time_embed_dim,
             class_embed_dim=effective_class_embed_dim,
         )
@@ -223,6 +257,8 @@ class CNNVectorField(VectorFieldModel):
                             num_residual_layers=num_residual_layers,
                             time_embed_dim=time_embed_dim,
                             class_embed_dim=effective_class_embed_dim,
+                            upsample=downsample,
+                            upsample_mode=upsample_mode,
                         )
                         for current_channels, next_channels in zip(channels[:-1], channels[1:])
                     ]

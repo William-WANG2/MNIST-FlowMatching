@@ -237,9 +237,10 @@ python scripts/train.py \
 For representation-aware backbone defaults:
 
 - latent `dit` uses `latent_patch_size=1` by default
-- latent `cnn` uses a no-downsampling stack by default via `latent_channels=[128]`
+- latent `cnn` disables encoder downsampling by default (`latent_downsample=false`) so 4x4 latent maps do not get spatially compressed further
+- latent `cnn` defaults decoder upsampling ops to deconvolution when upsampling is enabled (`latent_upsample_mode=deconv`)
 - latent `mlp` uses `latent_hidden_dims=[4096,4096,4096,4096]`, while pixel-space MLP keeps the original `pixel_hidden_dims=[1024,1024,1024]`
-- set `backbone.patch_size`, `backbone.channels`, or `backbone.num_residual_layers` explicitly if you want to override those defaults
+- set `backbone.patch_size`, `backbone.channels`, `backbone.num_residual_layers`, `backbone.mid_num_residual_layers`, `backbone.downsample`, or `backbone.upsample_mode` explicitly if you want to override those defaults
 
 The latent training workflow is:
 
@@ -426,7 +427,7 @@ The active experiment is composed from Hydra config groups.
 Backbone configs in `configs/backbone`:
 
 - `mlp.yaml`: hidden layer sizes and embedding sizes
-- `cnn.yaml`: U-Net channel widths, residual depth, and embedding sizes
+- `cnn.yaml`: U-Net channel widths, residual depth, middle depth, optional downsampling, and upsampling mode (`bilinear` or `deconv`)
 - `dit.yaml`: patch size, transformer depth, width, heads, and embedding sizes
 
 Conditioning configs in `configs/conditioning`:

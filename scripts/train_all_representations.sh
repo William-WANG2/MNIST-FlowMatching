@@ -19,8 +19,8 @@ VAE_RUN_NAME="${VAE_RUN_NAME:-vae}"
 VAE_NUM_STEPS="${VAE_NUM_STEPS:-10000}"
 VAE_EXTRA_ARGS="${VAE_EXTRA_ARGS:-}"
 SAMPLE_EXTRA_ARGS="${SAMPLE_EXTRA_ARGS:-}"
-BACKBONES=(cnn dit mlp)
-CONDITIONINGS=(none cfg)
+BACKBONES=(dit cnn mlp)
+CONDITIONINGS=(cfg none)
 SIMULATORS=(sde ode)
 REPRESENTATIONS=(latent_vae pixel)
 
@@ -78,13 +78,13 @@ vae_train_cmd=(
   training.num_steps="${VAE_NUM_STEPS}"
 )
 
-if [[ -n "${VAE_EXTRA_ARGS}" ]]; then
-  while IFS= read -r -d '' arg; do
-    vae_train_cmd+=("${arg}")
-  done < <(append_override_args "${VAE_EXTRA_ARGS}")
-fi
+# if [[ -n "${VAE_EXTRA_ARGS}" ]]; then
+#   while IFS= read -r -d '' arg; do
+#     vae_train_cmd+=("${arg}")
+#   done < <(append_override_args "${VAE_EXTRA_ARGS}")
+# fi
 
-run_and_log "Training VAE run ${VAE_RUN_NAME} on ${VAE_NUM_STEPS} steps" "${vae_train_cmd[@]}"
+# run_and_log "Training VAE run ${VAE_RUN_NAME} on ${VAE_NUM_STEPS} steps" "${vae_train_cmd[@]}"
 
 VAE_CKPT="$(latest_model_checkpoint "${VAE_RUN_NAME}")"
 

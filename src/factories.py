@@ -86,10 +86,39 @@ def build_backbone(cfg, image_shape):
                 if representation_name == "latent_vae"
                 else cfg.backbone.pixel_num_residual_layers
             )
+        mid_num_residual_layers = getattr(cfg.backbone, "mid_num_residual_layers", None)
+        if mid_num_residual_layers is None:
+            mid_num_residual_layers = (
+                cfg.backbone.latent_mid_num_residual_layers
+                if representation_name == "latent_vae"
+                else cfg.backbone.pixel_mid_num_residual_layers
+            )
+
+        downsample = getattr(cfg.backbone, "downsample", None)
+        if downsample is None:
+            downsample = (
+                cfg.backbone.latent_downsample
+                if representation_name == "latent_vae"
+                else cfg.backbone.pixel_downsample
+            )
+
+        upsample_mode = getattr(cfg.backbone, "upsample_mode", None)
+        if upsample_mode is None:
+            upsample_mode = (
+                cfg.backbone.latent_upsample_mode
+                if representation_name == "latent_vae"
+                else cfg.backbone.pixel_upsample_mode
+            )
+
         return CNNVectorField(
             image_shape=image_shape,
             channels=list(channels),
             num_residual_layers=int(num_residual_layers),
+            mid_num_residual_layers=None
+            if mid_num_residual_layers is None
+            else int(mid_num_residual_layers),
+            downsample=bool(downsample),
+            upsample_mode=str(upsample_mode),
             time_embed_dim=int(cfg.backbone.time_embed_dim),
             class_embed_dim=int(cfg.backbone.class_embed_dim),
             num_classes=conditioning_classes,
