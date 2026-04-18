@@ -57,9 +57,16 @@ def build_backbone(cfg, image_shape):
                 "CFG expects one extra label slot beyond the MNIST digit labels."
             )
     if cfg.backbone.name == "mlp":
+        hidden_dims = getattr(cfg.backbone, "hidden_dims", None)
+        if hidden_dims is None:
+            hidden_dims = (
+                cfg.backbone.latent_hidden_dims
+                if representation_name == "latent_vae"
+                else cfg.backbone.pixel_hidden_dims
+            )
         return MLPVectorField(
             image_shape=image_shape,
-            hidden_dims=list(cfg.backbone.hidden_dims),
+            hidden_dims=list(hidden_dims),
             time_embed_dim=int(cfg.backbone.time_embed_dim),
             class_embed_dim=int(cfg.backbone.class_embed_dim),
             num_classes=conditioning_classes,

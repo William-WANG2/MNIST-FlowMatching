@@ -19,12 +19,30 @@ from objectives.vae import VAEObjective
 from utils.runtime import ensure_dir, resolve_device, seed_everything
 
 
+def _resolve_training_batch_size(cfg) -> int:
+    configured_batch_size = getattr(cfg.training, "batch_size", None)
+    if configured_batch_size is not None:
+        return int(configured_batch_size)
+
+    task_name = getattr(cfg.task, "name", "flow_matching")
+    if task_name == "vae":
+        return int(cfg.training.vae_batch_size)
+
+    representation_name = getattr(cfg.representation, "name", "pixel")
+    if representation_name == "pixel":
+        return int(cfg.training.pixel_batch_size)
+    if representation_name == "latent_vae":
+        return int(cfg.training.latent_batch_size)
+    raise ValueError(f"Unsupported representation for batch-size resolution: {representation_name}")
+
+
 def run_training(cfg, project_root: Path) -> None:
     seed_everything(int(cfg.training.seed))
     device = resolve_device(cfg.training.device)
 
     task_name = getattr(cfg.task, "name", "flow_matching")
     representation_name = getattr(cfg.representation, "name", "pixel")
+    batch_size = _resolve_training_batch_size(cfg)
     if task_name == "flow_matching":
         default_run_name = (
             f"{cfg.backbone.name}_{cfg.conditioning.name}_{cfg.simulator.name}"
@@ -36,11 +54,12 @@ def run_training(cfg, project_root: Path) -> None:
     run_name = cfg.training.run_name or default_run_name
     run_dir = ensure_dir(project_root / cfg.training.output_root / run_name)
 
+    cfg.training.resolved_batch_size = batch_size
     OmegaConf.save(cfg, run_dir / "config.yaml")
 
     train_loader = build_train_loader(
         data_root=project_root / cfg.data.root,
-        batch_size=int(cfg.training.batch_size),
+        batch_size=batch_size,
         image_size=int(cfg.data.image_size),
         mean=float(cfg.data.mean),
         std=float(cfg.data.std),

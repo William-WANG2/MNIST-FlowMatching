@@ -142,8 +142,10 @@ The default is defined in `configs/train.yaml`:
 - simulator: `ode`
 - task: `flow_matching`
 - representation: `pixel`
-- batch size: `256`
+- batch size: auto (`256` for pixel flow matching, `64` for latent-VAE flow matching and VAE training)
 - steps: `20000`
+
+Set `training.batch_size=<N>` to override the automatic batch-size selection explicitly.
 
 ### Common Training Commands
 
@@ -236,6 +238,7 @@ For representation-aware backbone defaults:
 
 - latent `dit` uses `latent_patch_size=1` by default
 - latent `cnn` uses a no-downsampling stack by default via `latent_channels=[128]`
+- latent `mlp` uses `latent_hidden_dims=[4096,4096,4096,4096]`, while pixel-space MLP keeps the original `pixel_hidden_dims=[1024,1024,1024]`
 - set `backbone.patch_size`, `backbone.channels`, or `backbone.num_residual_layers` explicitly if you want to override those defaults
 
 The latent training workflow is:
@@ -256,7 +259,7 @@ Change the number of steps:
 python scripts/train.py training.num_steps=5000
 ```
 
-Change learning rate and batch size:
+Override learning rate and batch size explicitly:
 
 ```bash
 python scripts/train.py training.lr=1e-4 training.batch_size=128

@@ -1,6 +1,10 @@
 seed: 7
 device: auto
-batch_size: 64
+# Leave null to use task-/representation-aware defaults below.
+batch_size: null
+pixel_batch_size: 256
+latent_batch_size: 128
+vae_batch_size: 128
 num_steps: 20000
 lr: 4.0e-4
 weight_decay: 1.0e-4
