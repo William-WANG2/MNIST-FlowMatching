@@ -132,7 +132,9 @@ class Encoder(nn.Module):
             nn.GroupNorm(1, z_dim),
             nn.Conv2d(in_channels=z_dim, out_channels=z_dim, kernel_size=1, stride=1, padding=0),
         )
-        self.logvar = nn.Parameter(torch.zeros(()))
+        # Per-channel log-variance (broadcasts over spatial dims) — more expressive
+        # than a single global scalar.
+        self.logvar = nn.Parameter(torch.zeros(z_dim, 1, 1))
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         # Initial convolution
@@ -201,7 +203,9 @@ class Decoder(nn.Module):
                 padding=0,
             ),
         )
-        self.logvar = nn.Parameter(torch.zeros(()))
+        # Per-channel log-variance (broadcasts over spatial dims) — more expressive
+        # than a single global scalar.
+        self.logvar = nn.Parameter(torch.zeros(out_channels, 1, 1))
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         for block in self.blocks:
