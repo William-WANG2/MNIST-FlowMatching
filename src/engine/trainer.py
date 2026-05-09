@@ -40,6 +40,7 @@ class Trainer:
             self.model.parameters(), lr=lr, weight_decay=weight_decay
         )
         self.base_lr = lr
+        self.max_grad_norm = 1.0
         self.loss_steps: list[int] = []
         self.loss_values: list[float] = []
 
@@ -102,6 +103,7 @@ class Trainer:
             self.optimizer.zero_grad(set_to_none=True)
             loss = self.objective.compute_loss(self.model, images, labels)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
             self.optimizer.step()
 
             self.loss_steps.append(step)
