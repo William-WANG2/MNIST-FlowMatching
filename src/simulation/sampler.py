@@ -37,8 +37,11 @@ class FlowSampler:
         labels: Optional[torch.Tensor],
         guidance_scale: float,
         use_tqdm: bool,
+        generator: Optional[torch.Generator] = None,
     ) -> torch.Tensor:
-        x0 = self.probability_path.sample_source(batch_size=batch_size, device=device)
+        x0 = self.probability_path.sample_source(
+            batch_size=batch_size, device=device, generator=generator
+        )
         ts = build_time_grid(
             batch_size=batch_size,
             num_steps=self.num_steps,

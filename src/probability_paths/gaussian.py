@@ -59,9 +59,16 @@ class GaussianProbabilityPath(nn.Module):
     def device(self) -> torch.device:
         return self._device_anchor.device
 
-    def sample_source(self, batch_size: int, device: torch.device | None = None) -> torch.Tensor:
+    def sample_source(
+        self,
+        batch_size: int,
+        device: torch.device | None = None,
+        generator: torch.Generator | None = None,
+    ) -> torch.Tensor:
         sample_device = device or self.device
-        return self.source_std * torch.randn(batch_size, *self.sample_shape, device=sample_device)
+        return self.source_std * torch.randn(
+            batch_size, *self.sample_shape, device=sample_device, generator=generator
+        )
 
     def sample_source_like(self, reference: torch.Tensor) -> torch.Tensor:
         return self.source_std * torch.randn_like(reference)
