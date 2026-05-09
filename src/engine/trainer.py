@@ -1,4 +1,5 @@
 from pathlib import Path
+import math
 
 import torch
 from torch import nn
@@ -41,14 +42,21 @@ class Trainer:
         )
         self.base_lr = lr
         self.max_grad_norm = 1.0
+        self._num_train_steps: int = 0  # set at the start of train()
         self.loss_steps: list[int] = []
         self.loss_values: list[float] = []
 
     def _set_lr(self, step: int) -> float:
-        if self.warmup_steps <= 0 or step >= self.warmup_steps:
-            lr = self.base_lr
-        else:
+        if self.warmup_steps > 0 and step < self.warmup_steps:
+            # Linear warm-up
             lr = self.base_lr * float(step + 1) / float(self.warmup_steps)
+        elif self._num_train_steps > 0:
+            # Cosine annealing after warm-up
+            decay_steps = self._num_train_steps - self.warmup_steps
+            progress = (step - self.warmup_steps) / max(1, decay_steps)
+            lr = self.base_lr * 0.5 * (1.0 + math.cos(math.pi * progress))
+        else:
+            lr = self.base_lr
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr
         return lr
@@ -93,6 +101,7 @@ class Trainer:
 
     def train(self, num_steps: int) -> None:
         self.model.train()
+        self._num_train_steps = num_steps
         progress = tqdm(range(num_steps), desc="train")
         for step in progress:
             lr = self._set_lr(step)
