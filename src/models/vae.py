@@ -128,27 +128,29 @@ class Encoder(nn.Module):
         )
 
         z_dim = hidden_channels[-1]
+        # Both mean and log-variance are predicted from the input so that the encoder
+        # can express different levels of uncertainty for different inputs.
         self.z_mean = nn.Sequential(
             nn.GroupNorm(1, z_dim),
             nn.Conv2d(in_channels=z_dim, out_channels=z_dim, kernel_size=1, stride=1, padding=0),
         )
-        # Per-channel log-variance (broadcasts over spatial dims) — more expressive
-        # than a single global scalar.
-        self.logvar = nn.Parameter(torch.zeros(z_dim, 1, 1))
+        self.z_logvar = nn.Sequential(
+            nn.GroupNorm(1, z_dim),
+            nn.Conv2d(in_channels=z_dim, out_channels=z_dim, kernel_size=1, stride=1, padding=0),
+        )
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         # Initial convolution
         x = self.init_conv(x)
-        
+
         # Propagate through encoder blocks
         for block in self.blocks:
             x = block(x)
-            
-        # Predict latent mean
+
+        # Predict input-conditioned mean and log-variance
         z_mean = self.z_mean(x)
-        
-        # Return mean and global log variance parameter
-        return z_mean, self.logvar
+        z_logvar = self.z_logvar(x)
+        return z_mean, z_logvar
 
 
 class DecoderBlock(nn.Module):
@@ -251,15 +253,17 @@ class VAE(nn.Module):
         batch_size = z_mean.shape[0]
 
         # KL loss: -0.5 * sum(1 + log(var) - mean^2 - var)
-        # We flatten all dimensions except the batch dimension to sum across the latent map
+        # Sum over all latent dimensions per sample, then average over the batch.
+        # Using .mean() here would divide by (z_dim * H * W) instead of just the batch
+        # size, making the effective beta depend on the latent tensor size and causing
+        # extreme sensitivity to architecture choices.
         kl_div = -0.5 * (1 + z_logvar - z_mean.pow(2) - z_logvar.exp())
-        # kl_loss = self.beta * kl_div.view(batch_size, -1).sum(dim=1).mean()
-        kl_loss = self.beta * kl_div.mean()
+        kl_loss = self.beta * kl_div.view(batch_size, -1).sum(dim=1).mean()
 
         # Reconstruction loss: Gaussian Negative Log-Likelihood
         # 0.5 * sum( (x_true - x_mean)^2 / exp(x_logvar) + x_logvar )
+        # Sum over all data dimensions per sample, then average over the batch.
         nll = 0.5 * (torch.exp(-x_logvar) * (x_true - x_mean).pow(2) + x_logvar)
-        # recon_loss = nll.view(batch_size, -1).sum(dim=1).mean()
-        recon_loss = nll.mean()
+        recon_loss = nll.view(batch_size, -1).sum(dim=1).mean()
 
         return kl_loss + recon_loss
