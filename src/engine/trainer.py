@@ -117,7 +117,7 @@ class Trainer:
                 )
             if self.image_log_every > 0 and step % self.image_log_every == 0:
                 self._save_training_comparison(step=step, images=images, labels=labels)
-            if self.checkpoint_every > 0 and step > 0 and step % self.checkpoint_every == 0 or step == num_steps - 1:
+            if (self.checkpoint_every > 0 and step > 0 and step % self.checkpoint_every == 0) or step == num_steps - 1:
                 self._save_checkpoint(step)
 
         save_loss_curve(
