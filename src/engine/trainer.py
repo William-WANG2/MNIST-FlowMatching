@@ -1,4 +1,5 @@
 from pathlib import Path
+import math
 
 import torch
 from torch import nn
@@ -40,14 +41,22 @@ class Trainer:
             self.model.parameters(), lr=lr, weight_decay=weight_decay
         )
         self.base_lr = lr
+        self.max_grad_norm = 1.0
+        self._num_train_steps: int = 0  # set at the start of train()
         self.loss_steps: list[int] = []
         self.loss_values: list[float] = []
 
     def _set_lr(self, step: int) -> float:
-        if self.warmup_steps <= 0 or step >= self.warmup_steps:
-            lr = self.base_lr
-        else:
+        if self.warmup_steps > 0 and step < self.warmup_steps:
+            # Linear warm-up
             lr = self.base_lr * float(step + 1) / float(self.warmup_steps)
+        elif self._num_train_steps > 0:
+            # Cosine annealing after warm-up
+            decay_steps = self._num_train_steps - self.warmup_steps
+            progress = (step - self.warmup_steps) / max(1, decay_steps)
+            lr = self.base_lr * 0.5 * (1.0 + math.cos(math.pi * progress))
+        else:
+            lr = self.base_lr
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr
         return lr
@@ -92,6 +101,7 @@ class Trainer:
 
     def train(self, num_steps: int) -> None:
         self.model.train()
+        self._num_train_steps = num_steps
         progress = tqdm(range(num_steps), desc="train")
         for step in progress:
             lr = self._set_lr(step)
@@ -102,6 +112,7 @@ class Trainer:
             self.optimizer.zero_grad(set_to_none=True)
             loss = self.objective.compute_loss(self.model, images, labels)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
             self.optimizer.step()
 
             self.loss_steps.append(step)
@@ -117,7 +128,7 @@ class Trainer:
                 )
             if self.image_log_every > 0 and step % self.image_log_every == 0:
                 self._save_training_comparison(step=step, images=images, labels=labels)
-            if self.checkpoint_every > 0 and step > 0 and step % self.checkpoint_every == 0 or step == num_steps - 1:
+            if (self.checkpoint_every > 0 and step > 0 and step % self.checkpoint_every == 0) or step == num_steps - 1:
                 self._save_checkpoint(step)
 
         save_loss_curve(
