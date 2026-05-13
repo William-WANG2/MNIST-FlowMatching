@@ -149,7 +149,7 @@ class Encoder(nn.Module):
 
         # Predict input-conditioned mean and log-variance
         z_mean = self.z_mean(x)
-        z_logvar = self.z_logvar(x)
+        z_logvar = self.z_logvar(x).clamp(-30.0, 20.0)
         return z_mean, z_logvar
 
 
@@ -213,7 +213,10 @@ class Decoder(nn.Module):
         for block in self.blocks:
             x = block(x)
         x_mean = self.x_mean(x)
-        return x_mean, self.logvar
+        # Clamp to prevent logvar → -∞ (which sends NLL → -∞).
+        # Range [-30, 20] follows the Stable Diffusion / latent-diffusion convention.
+        x_logvar = self.logvar.clamp(-30.0, 20.0)
+        return x_mean, x_logvar
 
 
 class VAE(nn.Module):
