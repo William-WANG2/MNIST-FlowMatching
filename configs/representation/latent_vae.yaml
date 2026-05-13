@@ -2,3 +2,7 @@ name: latent_vae
 vae_checkpoint_path: null
 latent_shape: [128, 4, 4]
 sample_posterior: false
+# Scaling factor to normalize latent distribution to unit variance before flow
+# matching training.  Compute as 1/std(z) over the training set after the VAE is
+# trained, or leave as null to skip normalization (not recommended).
+latent_scaling_factor: null

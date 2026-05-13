@@ -46,8 +46,10 @@ def run_sampling(cfg, project_root: Path) -> None:
     representation_name = getattr(cfg.representation, "name", "pixel")
     sample_shape = build_representation_shape(cfg)
     vae = None
+    latent_scaling_factor = None
     if representation_name == "latent_vae":
         vae = load_frozen_vae(cfg, project_root=project_root, device=device)
+        latent_scaling_factor = getattr(cfg.representation, "latent_scaling_factor", None)
 
     probability_path = build_probability_path(
         cfg,
@@ -75,6 +77,8 @@ def run_sampling(cfg, project_root: Path) -> None:
                 use_tqdm=bool(cfg.sampling.use_tqdm),
             )
             if vae is not None:
+                if latent_scaling_factor is not None:
+                    samples = samples / latent_scaling_factor
                 samples = decode_with_vae(vae, samples)
             save_image_grid(
                 samples=samples,
@@ -92,6 +96,8 @@ def run_sampling(cfg, project_root: Path) -> None:
             use_tqdm=bool(cfg.sampling.use_tqdm),
         )
         if vae is not None:
+            if latent_scaling_factor is not None:
+                samples = samples / latent_scaling_factor
             samples = decode_with_vae(vae, samples)
         save_image_grid(
             samples=samples,

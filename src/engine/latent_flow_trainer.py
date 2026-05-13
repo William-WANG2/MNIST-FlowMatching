@@ -12,6 +12,13 @@ class LatentFlowTrainer(Trainer):
         self.sample_posterior = sample_posterior
         self.latent_shape = tuple(latent_shape)
 
+    def _unscale_latent(self, z: torch.Tensor) -> torch.Tensor:
+        """Undo the latent scaling applied during encoding for decode."""
+        scaling = getattr(self.objective, "latent_scaling_factor", None)
+        if scaling is not None:
+            return z / scaling
+        return z
+
     @torch.no_grad()
     def _save_training_comparison(
         self,
@@ -30,9 +37,9 @@ class LatentFlowTrainer(Trainer):
         t_view = t.view(-1, *([1] * (x_t.ndim - 1)))
         predicted_latents = x_t + (1.0 - t_view) * velocity
 
-        decoded_targets = decode_with_vae(self.vae, target_latents)
-        decoded_noisy = decode_with_vae(self.vae, x_t)
-        decoded_predicted = decode_with_vae(self.vae, predicted_latents)
+        decoded_targets = decode_with_vae(self.vae, self._unscale_latent(target_latents))
+        decoded_noisy = decode_with_vae(self.vae, self._unscale_latent(x_t))
+        decoded_predicted = decode_with_vae(self.vae, self._unscale_latent(predicted_latents))
 
         log_path = self.run_dir / "train_logs" / "comparisons" / f"step_{step:06d}.png"
         save_latent_training_comparison(

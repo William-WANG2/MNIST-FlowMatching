@@ -189,6 +189,7 @@ def build_latent_objective(cfg, probability_path, vae):
         null_label=null_label,
         label_dropout=label_dropout,
         eps=float(cfg.path.eps),
+        latent_scaling_factor=getattr(cfg.representation, "latent_scaling_factor", None),
     )
 
 

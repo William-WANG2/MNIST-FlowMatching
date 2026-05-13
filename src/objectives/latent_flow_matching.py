@@ -14,6 +14,7 @@ class LatentFlowMatchingObjective(FlowMatchingObjective):
         null_label: int | None,
         label_dropout: float,
         eps: float,
+        latent_scaling_factor: float | None = None,
     ):
         super().__init__(probability_path=probability_path, eps=eps)
         self.vae = vae
@@ -21,15 +22,19 @@ class LatentFlowMatchingObjective(FlowMatchingObjective):
         self.latent_shape = tuple(latent_shape)
         self.null_label = null_label
         self.label_dropout = label_dropout
+        self.latent_scaling_factor = latent_scaling_factor
 
     @torch.no_grad()
     def encode_batch(self, images: torch.Tensor) -> torch.Tensor:
-        return encode_with_vae(
+        latents = encode_with_vae(
             vae=self.vae,
             images=images,
             sample_posterior=self.sample_posterior,
             latent_shape=self.latent_shape,
         )
+        if self.latent_scaling_factor is not None:
+            latents = latents * self.latent_scaling_factor
+        return latents
 
     def compute_loss(
         self,
